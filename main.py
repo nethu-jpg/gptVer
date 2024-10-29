@@ -4,9 +4,9 @@ import requests
 from bs4 import BeautifulSoup
 from telegram import Bot
 
-# Telegram Bot setup
-BOT_TOKEN = "7725944062:AAFf584dTC6czU5ugP0-v_3Y23ip9M2Y-qo"  # Replace with your bot token
-CHAT_ID = "-1001279674881"               # Replace with your chat ID
+# Initialize Telegram bot
+BOT_TOKEN = os.getenv("7725944062:AAFf584dTC6czU5ugP0-v_3Y23ip9M2Y-qo")
+CHAT_ID = os.getenv("-1001279674881")
 bot = Bot(token=BOT_TOKEN)
 
 # Function to get download links
