@@ -9,6 +9,13 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 bot = Bot(token=BOT_TOKEN)
 
+print("Bot starting...")
+print("Token:", BOT_TOKEN)  # Check if BOT_TOKEN is being loaded correctly
+
+# Add more print statements to see if other parts of the code are running
+# e.g., after fetching a link, starting a download, etc.
+
+
 # Function to get download links
 def get_download_links():
     url = "https://www.baiscope.lk"  # Main URL where links are listed
@@ -55,4 +62,4 @@ while True:
             processed_links.add(link)
     
     # Wait before checking again
-    time.sleep(300)  # Check every 5 minutes
+    time.sleep(20)  # Check every 5 minutes
