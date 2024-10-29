@@ -1,54 +1,58 @@
-import requests
 import os
-from telegram import Bot
-from telegram.error import TelegramError
 import time
+import requests
+from bs4 import BeautifulSoup
+from telegram import Bot
 
 # Telegram Bot setup
 BOT_TOKEN = "7725944062:AAFf584dTC6czU5ugP0-v_3Y23ip9M2Y-qo"  # Replace with your bot token
 CHAT_ID = "-1001279674881"               # Replace with your chat ID
 bot = Bot(token=BOT_TOKEN)
 
-# Base URL setup for downloading files
-BASE_URL = "https://www.baiscope.lk/Downloads/"
-START_ID = 80390   # The first file ID you want to start from
-END_ID = 80400     # Adjust to the number of files you need
-OUTPUT_FOLDER = "downloads"
+# Function to get download links
+def get_download_links():
+    url = "https://www.baiscope.lk"  # Main URL where links are listed
+    response = requests.get(url)
+    soup = BeautifulSoup(response.text, 'html.parser')
+    
+    # Find all <a> tags with 'Downloads' in the href attribute
+    links = []
+    for a_tag in soup.find_all('a', href=True):
+        if '/Downloads/' in a_tag['href']:
+            full_url = url + a_tag['href']
+            links.append(full_url)
+    return links
 
-# Create downloads folder if it doesn't exist
-if not os.path.exists(OUTPUT_FOLDER):
-    os.makedirs(OUTPUT_FOLDER)
-
-def download_file(file_id):
-    url = f"{BASE_URL}{file_id}/"
+# Function to download and upload file
+def download_and_upload_file(link):
     try:
-        print(f"Downloading from {url}...")
-        response = requests.get(url, stream=True)
+        # Download the file
+        response = requests.get(link)
         if response.status_code == 200:
-            file_name = f"{OUTPUT_FOLDER}/{file_id}.zip"  # Modify based on file type if known
-            with open(file_name, "wb") as file:
-                for chunk in response.iter_content(chunk_size=8192):
-                    file.write(chunk)
-            print(f"Downloaded {file_name}")
-            return file_name
+            filename = link.split("/")[-2] + ".file"  # Extract filename from link
+            with open(filename, "wb") as file:
+                file.write(response.content)
+            
+            # Upload to Telegram
+            with open(filename, "rb") as file:
+                bot.send_document(chat_id=CHAT_ID, document=file)
+            print(f"Uploaded {filename} successfully!")
+            
+            # Clean up
+            os.remove(filename)
         else:
-            print(f"Failed to download {url} (Status Code: {response.status_code})")
+            print(f"Failed to download {link} (Status Code: {response.status_code})")
     except Exception as e:
-        print(f"Error downloading {url}: {e}")
-    return None
+        print(f"Error processing {link}: {e}")
 
-def send_to_telegram(file_path):
-    try:
-        print(f"Uploading {file_path} to Telegram...")
-        with open(file_path, 'rb') as file:
-            bot.send_document(chat_id=CHAT_ID, document=file)
-        print(f"Uploaded {file_path} successfully!")
-    except TelegramError as e:
-        print(f"Failed to upload {file_path} to Telegram: {e}")
-
-# Main loop to download and upload
-for file_id in range(START_ID, END_ID + 1):
-    file_path = download_file(file_id)
-    if file_path:
-        send_to_telegram(file_path)
-        time.sleep(2)  # Add delay to respect API rate limits
+# Main loop to check for new links
+processed_links = set()  # To keep track of already processed links
+while True:
+    links = get_download_links()
+    for link in links:
+        if link not in processed_links:
+            download_and_upload_file(link)
+            processed_links.add(link)
+    
+    # Wait before checking again
+    time.sleep(300)  # Check every 5 minutes
