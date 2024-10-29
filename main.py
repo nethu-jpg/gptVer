@@ -1,65 +1,52 @@
-import os
-import time
 import requests
 from bs4 import BeautifulSoup
-from telegram import Bot
+import os
+import telegram
 
 # Initialize Telegram bot
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-bot = Bot(token=BOT_TOKEN)
+bot = telegram.Bot(token=BOT_TOKEN)
 
-print("Bot starting...")
-print("Token:", BOT_TOKEN)  # Check if BOT_TOKEN is being loaded correctly
-
-# Add more print statements to see if other parts of the code are running
-# e.g., after fetching a link, starting a download, etc.
-
-
-# Function to get download links
-def get_download_links():
-    url = "https://www.baiscope.lk"  # Main URL where links are listed
-    response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    
-    # Find all <a> tags with 'Downloads' in the href attribute
-    links = []
-    for a_tag in soup.find_all('a', href=True):
-        if '/Downloads/' in a_tag['href']:
-            full_url = url + a_tag['href']
-            links.append(full_url)
-    return links
-
-# Function to download and upload file
-def download_and_upload_file(link):
+# Function to download files
+def download_file(url):
     try:
-        # Download the file
-        response = requests.get(link)
-        if response.status_code == 200:
-            filename = link.split("/")[-2] + ".file"  # Extract filename from link
-            with open(filename, "wb") as file:
-                file.write(response.content)
-            
-            # Upload to Telegram
-            with open(filename, "rb") as file:
-                bot.send_document(chat_id=CHAT_ID, document=file)
-            print(f"Uploaded {filename} successfully!")
-            
-            # Clean up
-            os.remove(filename)
-        else:
-            print(f"Failed to download {link} (Status Code: {response.status_code})")
+        response = requests.get(url)
+        response.raise_for_status()  # Raises an error for bad responses
+        filename = url.split('/')[-2] + '.zip'  # Change file extension if needed
+        with open(f'downloads/{filename}', 'wb') as f:
+            f.write(response.content)
+        return filename
     except Exception as e:
-        print(f"Error processing {link}: {e}")
+        print(f"Failed to download {url}: {e}")
+        return None
 
-# Main loop to check for new links
-processed_links = set()  # To keep track of already processed links
-while True:
-    links = get_download_links()
-    for link in links:
-        if link not in processed_links:
-            download_and_upload_file(link)
-            processed_links.add(link)
+# Function to upload files to Telegram
+def upload_to_telegram(file_path):
+    with open(file_path, 'rb') as f:
+        bot.send_document(chat_id=CHAT_ID, document=f)
+
+# Function to scrape the webpage for download links
+def scrape_links():
+    url = "https://www.baiscope.lk/"  # Change to the target page
+    response = requests.get(url)
+    soup = BeautifulSoup(response.content, 'html.parser')
     
-    # Wait before checking again
-    time.sleep(20)  # Check every 5 minutes
+    # Find all links with specific class
+    links = soup.find_all('a', class_='dlm-buttons-button-baiscopebutton')
+    
+    for link in links:
+        download_url = link.get('href')  # Extract the URL
+        if download_url:
+            full_url = f"https://www.baiscope.lk{download_url}"  # Complete the URL
+            print(f"Downloading from {full_url}...")
+            file_name = download_file(full_url)
+            if file_name:
+                print(f"Uploading {file_name} to Telegram...")
+                upload_to_telegram(f'downloads/{file_name}')
+            else:
+                print("Download failed.")
+
+if __name__ == "__main__":
+    os.makedirs('downloads', exist_ok=True)  # Create a directory for downloads
+    scrape_links()
