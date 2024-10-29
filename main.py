@@ -25,7 +25,7 @@ def download_file(file_id):
         print(f"Downloading from {url}...")
         response = requests.get(url, stream=True)
         if response.status_code == 200:
-            file_name = f"{OUTPUT_FOLDER}/{file_id}.file"  # Modify based on file type if known
+            file_name = f"{OUTPUT_FOLDER}/{file_id}.zip"  # Modify based on file type if known
             with open(file_name, "wb") as file:
                 for chunk in response.iter_content(chunk_size=8192):
                     file.write(chunk)
