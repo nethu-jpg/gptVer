@@ -5,8 +5,8 @@ from telegram.error import TelegramError
 import time
 
 # Telegram Bot setup
-BOT_TOKEN = "your_telegram_bot_token"  # Replace with your bot token
-CHAT_ID = "your_chat_id"               # Replace with your chat ID
+BOT_TOKEN = "7725944062:AAFf584dTC6czU5ugP0-v_3Y23ip9M2Y-qo"  # Replace with your bot token
+CHAT_ID = "-1001279674881"               # Replace with your chat ID
 bot = Bot(token=BOT_TOKEN)
 
 # Base URL setup for downloading files
