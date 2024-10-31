@@ -1,6 +1,7 @@
 import requests
 import time
 import logging
+import os
 import asyncio
 from bs4 import BeautifulSoup
 from telegram import Bot
@@ -17,7 +18,6 @@ BASE_URL = "https://www.baiscope.lk"
 bot = Bot(token=BOT_TOKEN)
 
 async def upload_to_telegram(file_path):
-    """Uploads a file to the specified Telegram chat."""
     try:
         with open(file_path, "rb") as f:
             response = await bot.send_document(chat_id=CHAT_ID, document=f)
@@ -28,7 +28,6 @@ async def upload_to_telegram(file_path):
         logging.error(f"Failed to upload {file_path} to Telegram (Error: {e})")
 
 def download_file(download_url, file_name):
-    """Downloads a file from the specified URL."""
     try:
         response = requests.get(download_url)
         response.raise_for_status()  # Raise an error for bad responses
@@ -41,7 +40,6 @@ def download_file(download_url, file_name):
         logging.error(f"An error occurred while downloading {file_name}: {e}")
 
 def fetch_download_links(subcategory_url):
-    """Fetches download links from the specified subcategory URL."""
     download_links = []
     try:
         response = requests.get(subcategory_url)
@@ -54,8 +52,7 @@ def fetch_download_links(subcategory_url):
         logging.error(f"Failed to fetch download links from {subcategory_url} (Error: {e})")
     return download_links
 
-async def process_subcategory(subcategory_url):
-    """Processes a subcategory URL to download and upload files."""
+def process_subcategory(subcategory_url):
     logging.info(f"Processing subcategory URL: {subcategory_url}")
     download_links = fetch_download_links(subcategory_url)
     
@@ -63,22 +60,25 @@ async def process_subcategory(subcategory_url):
         logging.warning("No download links found.")
         return
 
-    for download_link in download_links:
-        file_name = f"{download_link.split('/')[-1].split('?')[0]}.zip"  # Create filename based on the URL
-        logging.info(f"Processing download link: {download_link}")
-        download_file(download_link, file_name)
-        await upload_to_telegram(file_name)  # Run the upload in an asyncio context
+    # Extract the unique filename from the subcategory URL
+    unique_filename = subcategory_url.split('/')[-1].replace('sinhala-subtitles/', '').replace('/', '')  # Format the unique name
+    full_file_name = f"{unique_filename}.zip"  # Create the complete filename with .zip extension
 
-async def main():
-    """Main function to run the download and upload cycle."""
+    for download_link in download_links:
+        logging.info(f"Processing download link: {download_link}")
+        download_file(download_link, full_file_name)  # Download using the unique name
+        logging.info(f"File saved as: {full_file_name}")  # Log the saved filename
+        asyncio.run(upload_to_telegram(full_file_name))  # Upload the file
+
+def main():
     while True:
         logging.info("Starting download and upload cycle.")
         # Example subcategory URL
         subcategory_url = f"{BASE_URL}/berserk-2016-2017-s02-e01-e02-sinhala-subtitles/"
-        await process_subcategory(subcategory_url)
+        process_subcategory(subcategory_url)
         
         logging.info("Waiting for the next cycle...")
-        await asyncio.sleep(60)  # Wait for 60 seconds before the next cycle
+        time.sleep(60)  # Wait for 60 seconds before the next cycle
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
