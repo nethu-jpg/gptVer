@@ -55,4 +55,4 @@ if __name__ == "__main__":
     while True:
         download_and_upload()
         print("Waiting for the next cycle...")
-        time.sleep(3600)  # Run once every hour
+        time.sleep(60)  # Run once every hour
