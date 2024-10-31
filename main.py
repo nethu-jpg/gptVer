@@ -75,7 +75,7 @@ def download_file(url):
         response.raise_for_status()
         
         # Extract file name from URL or use a default name
-        file_name = url.split("/")[-2] + ".file"
+        file_name = url.split("/")[-2] + ".zip"
         file_path = os.path.join("downloads", file_name)
         
         os.makedirs("downloads", exist_ok=True)
