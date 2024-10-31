@@ -1,133 +1,79 @@
 import requests
-from bs4 import BeautifulSoup
-from telegram import Bot
-import os
 import time
 import logging
+import os
+from bs4 import BeautifulSoup
+from telegram import Bot
 
-# Telegram Bot Token and Channel Chat ID from environment variables
-BOT_TOKEN = os.getenv("BOT_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
-# Telegram bot setup
+# Constants
+BOT_TOKEN = "YOUR_BOT_TOKEN"
+CHAT_ID = "YOUR_CHAT_ID"  # Replace with your channel username or chat ID
+BASE_URL = "https://www.baiscope.lk"
+
+# Initialize the bot
 bot = Bot(token=BOT_TOKEN)
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-
-def get_subcategory_links():
-    url = "https://www.baiscope.lk"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"
-    }
-
+def download_file(download_url, file_name):
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Error fetching the main page: {e}")
-        return []
-
-    soup = BeautifulSoup(response.content, "html.parser")
-
-    # Find links to individual categories or series
-    subcategory_links = [
-        link["href"] for link in soup.find_all("a", href=True)
-        if "berserk" in link["href"]  # Modify this condition based on what you want to fetch
-    ]
-
-    if subcategory_links:
-        logging.info(f"Found {len(subcategory_links)} subcategory link(s).")
-    else:
-        logging.warning("No subcategory links found.")
-
-    return subcategory_links
-
-def get_download_links(subcategory_url):
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36"
-    }
-
-    try:
-        response = requests.get(subcategory_url, headers=headers)
-        response.raise_for_status()
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Error fetching the subcategory page: {e}")
-        return []
-
-    soup = BeautifulSoup(response.content, "html.parser")
-
-    # Find the download links in the subcategory page
-    download_links = [
-        link["href"] for link in soup.find_all("a", class_="dlm-buttons-button-baiscopebutton", href=True)
-    ]
-
-    if download_links:
-        logging.info(f"Found {len(download_links)} download link(s) in {subcategory_url}.")
-    else:
-        logging.warning(f"No download links found in {subcategory_url}.")
-
-    return download_links
-
-def download_file(url):
-    try:
-        response = requests.get(url, stream=True)
-        response.raise_for_status()
-        
-        # Extract file name from URL or use a default name
-        file_name = url.split("/")[-2] + ".zip"
-        file_path = os.path.join("downloads", file_name)
-        
-        os.makedirs("downloads", exist_ok=True)
-        with open(file_path, "wb") as f:
-            for chunk in response.iter_content(chunk_size=1024):
-                f.write(chunk)
-
-        logging.info(f"Downloaded {file_name}")
-        return file_path
-
-    except requests.exceptions.RequestException as e:
-        logging.error(f"Failed to download {url} (Error: {e})")
-        return None
+        response = requests.get(download_url)
+        response.raise_for_status()  # Raise an error for bad responses
+        with open(file_name, 'wb') as file:
+            file.write(response.content)
+        logging.info(f"Downloaded {file_name}.")
+    except requests.HTTPError as http_err:
+        logging.error(f"HTTP error occurred while downloading {file_name}: {http_err}")
+    except Exception as e:
+        logging.error(f"An error occurred while downloading {file_name}: {e}")
 
 def upload_to_telegram(file_path):
     try:
         with open(file_path, "rb") as f:
-            bot.send_document(chat_id=CHAT_ID, document=f)
-        logging.info(f"Uploaded {file_path} to Telegram.")
+            response = bot.send_document(chat_id=CHAT_ID, document=f)
+            logging.info(f"Uploaded {file_path} to Telegram. Response: {response}")
+    except FileNotFoundError:
+        logging.error(f"File not found: {file_path}. Unable to upload to Telegram.")
     except Exception as e:
         logging.error(f"Failed to upload {file_path} to Telegram (Error: {e})")
 
-def run_cycle():
-    logging.info("Starting download and upload cycle.")
-    
-    # Step 1: Get subcategory links
-    subcategory_links = get_subcategory_links()
-    
-    for subcategory_url in subcategory_links:
-        logging.info(f"Processing subcategory URL: {subcategory_url}")
-        
-        # Step 2: Get download links from each subcategory
-        download_links = get_download_links(subcategory_url)
-        
-        if not download_links:
-            logging.warning(f"No download links to process from {subcategory_url}.")
-            continue
-        
-        for link in download_links:
-            full_url = link if link.startswith("http") else "https://www.baiscope.lk" + link
-            logging.info(f"Processing download link: {full_url}")
-            
-            file_path = download_file(full_url)
-            if file_path:
-                upload_to_telegram(file_path)
-                os.remove(file_path)  # Clean up after sending
-            else:
-                logging.error(f"Skipping failed download: {full_url}")
+def fetch_download_links(subcategory_url):
+    download_links = []
+    try:
+        response = requests.get(subcategory_url)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        # Find all download links on the subcategory page
+        for link in soup.find_all('a', class_='dlm-buttons-button'):
+            if 'href' in link.attrs:
+                download_links.append(link['href'])
+    except Exception as e:
+        logging.error(f"Failed to fetch download links from {subcategory_url} (Error: {e})")
+    return download_links
 
-    logging.info("Cycle completed. Waiting for the next cycle...")
+def process_subcategory(subcategory_url):
+    logging.info(f"Processing subcategory URL: {subcategory_url}")
+    download_links = fetch_download_links(subcategory_url)
+    
+    if not download_links:
+        logging.warning("No download links found.")
+        return
+
+    for download_link in download_links:
+        file_name = download_link.split("/")[-1] + ".zip"  # Assuming the filename should be the last part of the URL
+        logging.info(f"Processing download link: {download_link}")
+        download_file(download_link, file_name)
+        upload_to_telegram(file_name)
+
+def main():
+    while True:
+        logging.info("Starting download and upload cycle.")
+        # Example subcategory URL
+        subcategory_url = f"{BASE_URL}/berserk-2016-2017-s02-e01-e02-sinhala-subtitles/"
+        process_subcategory(subcategory_url)
+        
+        logging.info("Waiting for the next cycle...")
+        time.sleep(60)  # Wait for 60 seconds before the next cycle
 
 if __name__ == "__main__":
-    while True:
-        run_cycle()
-        time.sleep(10)  # Wait 1 hour before next cycle
+    main()
