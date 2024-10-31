@@ -9,8 +9,8 @@ from telegram import Bot
 logging.basicConfig(level=logging.INFO)
 
 # Constants
-BOT_TOKEN = "YOUR_BOT_TOKEN"
-CHAT_ID = "YOUR_CHAT_ID"  # Replace with your channel username or chat ID
+BOT_TOKEN = "7725944062:AAFf584dTC6czU5ugP0-v_3Y23ip9M2Y-qo"
+CHAT_ID = "-1001279674881"  # Replace with your channel username or chat ID
 BASE_URL = "https://www.baiscope.lk"
 
 # Initialize the bot
