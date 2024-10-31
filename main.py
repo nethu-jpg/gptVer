@@ -1,65 +1,58 @@
 import os
-import time
 import requests
 from bs4 import BeautifulSoup
 from telegram import Bot
+import time
 
-# Initialize Telegram bot
+# Environment Variables for Heroku
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
+BASE_URL = "https://www.baiscope.lk"  # Base URL for site
+
 bot = Bot(token=BOT_TOKEN)
 
-print("Bot starting...")
-print("Token:", BOT_TOKEN)  # Check if BOT_TOKEN is being loaded correctly
-
-# Add more print statements to see if other parts of the code are running
-# e.g., after fetching a link, starting a download, etc.
-
-
-# Function to get download links
+# Function to get all download links from the main page
 def get_download_links():
-    url = "https://www.baiscope.lk"  # Main URL where links are listed
+    url = f"{BASE_URL}/Downloads/"
     response = requests.get(url)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    
-    # Find all <a> tags with 'Downloads' in the href attribute
-    links = []
-    for a_tag in soup.find_all('a', href=True):
-        if '/Downloads/' in a_tag['href']:
-            full_url = url + a_tag['href']
-            links.append(full_url)
-    return links
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.text, 'html.parser')
+        links = [a['href'] for a in soup.find_all('a', class_='dlm-buttons-button-baiscopebutton')]
+        return [BASE_URL + link for link in links]
+    else:
+        print(f"Failed to fetch the page (Status Code: {response.status_code})")
+        return []
 
-# Function to download and upload file
-def download_and_upload_file(link):
-    try:
+# Function to download and upload files to Telegram
+def download_and_upload():
+    links = get_download_links()
+    for link in links:
+        print(f"Processing {link}...")
+        file_name = link.split('/')[-2] + ".zip"  # Modify if files are .rar sometimes
+        file_path = f"downloads/{file_name}"
+        
         # Download the file
         response = requests.get(link)
         if response.status_code == 200:
-            filename = link.split("/")[-2] + ".file"  # Extract filename from link
-            with open(filename, "wb") as file:
-                file.write(response.content)
-            
+            with open(file_path, "wb") as f:
+                f.write(response.content)
+            print(f"Downloaded {file_path}")
+
             # Upload to Telegram
-            with open(filename, "rb") as file:
-                bot.send_document(chat_id=CHAT_ID, document=file)
-            print(f"Uploaded {filename} successfully!")
+            with open(file_path, "rb") as f:
+                bot.send_document(chat_id=CHAT_ID, document=f)
+            print(f"Uploaded {file_path} to Telegram")
             
-            # Clean up
-            os.remove(filename)
+            # Optionally, delete file after upload
+            os.remove(file_path)
+            print(f"Deleted {file_path}")
         else:
             print(f"Failed to download {link} (Status Code: {response.status_code})")
-    except Exception as e:
-        print(f"Error processing {link}: {e}")
+        time.sleep(2)  # Optional delay between downloads
 
-# Main loop to check for new links
-processed_links = set()  # To keep track of already processed links
-while True:
-    links = get_download_links()
-    for link in links:
-        if link not in processed_links:
-            download_and_upload_file(link)
-            processed_links.add(link)
-    
-    # Wait before checking again
-    time.sleep(20)  # Check every 5 minutes
+# Main loop for Heroku
+if __name__ == "__main__":
+    while True:
+        download_and_upload()
+        print("Waiting for the next cycle...")
+        time.sleep(3600)  # Run once every hour
