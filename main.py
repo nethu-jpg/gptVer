@@ -2,6 +2,7 @@ import requests
 import time
 import logging
 import os
+import asyncio
 from bs4 import BeautifulSoup
 from telegram import Bot
 
@@ -16,6 +17,16 @@ BASE_URL = "https://www.baiscope.lk"
 # Initialize the bot
 bot = Bot(token=BOT_TOKEN)
 
+async def upload_to_telegram(file_path):
+    try:
+        with open(file_path, "rb") as f:
+            response = await bot.send_document(chat_id=CHAT_ID, document=f)
+            logging.info(f"Uploaded {file_path} to Telegram. Response: {response}")
+    except FileNotFoundError:
+        logging.error(f"File not found: {file_path}. Unable to upload to Telegram.")
+    except Exception as e:
+        logging.error(f"Failed to upload {file_path} to Telegram (Error: {e})")
+
 def download_file(download_url, file_name):
     try:
         response = requests.get(download_url)
@@ -27,16 +38,6 @@ def download_file(download_url, file_name):
         logging.error(f"HTTP error occurred while downloading {file_name}: {http_err}")
     except Exception as e:
         logging.error(f"An error occurred while downloading {file_name}: {e}")
-
-def upload_to_telegram(file_path):
-    try:
-        with open(file_path, "rb") as f:
-            response = bot.send_document(chat_id=CHAT_ID, document=f)
-            logging.info(f"Uploaded {file_path} to Telegram. Response: {response}")
-    except FileNotFoundError:
-        logging.error(f"File not found: {file_path}. Unable to upload to Telegram.")
-    except Exception as e:
-        logging.error(f"Failed to upload {file_path} to Telegram (Error: {e})")
 
 def fetch_download_links(subcategory_url):
     download_links = []
@@ -60,10 +61,10 @@ def process_subcategory(subcategory_url):
         return
 
     for download_link in download_links:
-        file_name = download_link.split("/")[-1] + ".zip"  # Assuming the filename should be the last part of the URL
+        file_name = f"{download_link.split('/')[-1].split('?')[0]}.zip"  # Create filename based on the URL
         logging.info(f"Processing download link: {download_link}")
         download_file(download_link, file_name)
-        upload_to_telegram(file_name)
+        asyncio.run(upload_to_telegram(file_name))  # Run the upload in an asyncio context
 
 def main():
     while True:
